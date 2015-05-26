@@ -9,10 +9,18 @@ function main() {
 var chatServer = function() {
     var SEPERATOR = '\r\n';
     var socket = null;
+    var authenticated = false; // store state to distinguish betwen OKAY messages
+
+    var _onLoginSuccess = function() {
+        console.log("login success");
+        authenticated = true; 
+        onLoginSuccess();
+    };
 
     var _onLoginFailed = function(reason) {
         console.log("login failed because of " + reason);
         // update ui
+        authenticated = false;
         onLoginFailed();
         addInfoMessage(reason);
     };
@@ -22,60 +30,69 @@ var chatServer = function() {
 
     // SERVER MESSAGES
     var _ACKN = function(msgId, receiverId) {
+
     };
 
     var _SEND = function(msgId, senderId, msg) {
+        // msg received
+        console.log('_SEND', msg, senderId, msg);
+        addChatMessage(msgId, sendId, msg, true);
     };
 
     var _ARRV = function(userId, name, desc) {
+        console.log('_ARRV', userId, name, desc);
+        addUser(userId, name, desc);
     };
-    var _INVD = function() {
+    var _INVD = function() {};
+    var _LEFT = function(userId) {};
+    var _OKAY = function() {
+        if (authenticated) {
+            // mark message as received
+        }
+        else {
+            _onLoginSuccess();
+        }
     };
-    
-    // 
+
     var _parseMsg = function(message) {
         var lines = message.split(SEPERATOR);
         if (lines[0].includes("FAIL")) {
-            switch(lines[1]) {
+            switch (lines[1]) {
                 case "PASSWORD":
                     _onLoginFailed("Invalid password");
-                break;
+                    break;
                 case "NAME":
                     _onLoginFailed("Invalid name");
-                break;
+                    break;
                 case "NUMBER":
                     _onLoginFailed("Invalid UserId");
-                break;
+                    break;
                 case "LENGTH":
                     _messageTooLong();
-                break;
+                    break;
             }
-        }
-        else if(lines[0].includes("ACKN")) {
+        } else if (lines[0].includes("OKAY")) {
+            _OKAY();
+        } else if (lines[0].includes("ACKN")) {
             var msgId = lines[0].split(' ')[1];
             var receiverId = lines[1];
             _ACKN(msgId, receiverId);
-        }
-        else if(lines[0].includes("SEND")) {
+        } else if (lines[0].includes("SEND")) {
             var msgId = lines[0].split(' ')[1];
             var senderId = lines[1];
             var msg = lines[2];
             _SEND(msgId, senderId, msg);
-        }
-        else if(lines[0].includes("ARRV")) {
+        } else if (lines[0].includes("ARRV")) {
             var userId = lines[0].split(' ')[1];
             var name = lines[1];
             var desc = lines[2];
             _ARRV(userId, name, desc);
-        }
-        else if(lines[0].includes("LEFT")) {
+        } else if (lines[0].includes("LEFT")) {
             var userId = lines[0].split(' ')[1];
             _LEFT(userId);
-        }
-        else if(lines[0].includes("INVD")) {
+        } else if (lines[0].includes("INVD")) {
             _INVD();
-        }
-        else {
+        } else {
             // SOMETHING REALLY STRANGE HAPPENED!
         }
     };
@@ -100,35 +117,39 @@ var chatServer = function() {
         onDisconnected();
     };
 
-    var _connect = function(url) {
-        console.log("connecting to " + url);
-        socket = new WebSocket(url);
-        socket.onopen = _onopen;
-        socket.onclose = _onclose;
-        socket.onmessage = _onmessage;
-        socket.onerror = _onerror;
-        console.log("connected to " + url);
-    };
-    var _disconnect = function() {
-        console.log('closing websocket');
-        socket.close();
-        socket = null;
-    };
-
     var _send = function(msg) {
-        console.log("Send to " + socket.url);
-        console.log(msg);
-        socket.send(msg);
+            console.log("SEND:", msg);
+            socket.send(msg);
     };
-
+ 
     return {
-        connect: _connect,
-        login: function(userId, username, password) {
-            var msg = ["AUTH " + userId, username, password].join(SEPERATOR);
-            _send(msg);
+        connect: function(url) {
+            console.log("connecting to " + url);
+            socket = new WebSocket(url);
+            socket.onopen = _onopen;
+            socket.onclose = _onclose;
+            socket.onmessage = _onmessage;
+            socket.onerror = _onerror;
+            console.log("connected to " + url);
         },
-        sendMsg: function(msg) {},
-        disconnect: _disconnect
+        login: function(userId, username, password) {
+            _send(["AUTH " + userId, username, password].join(SEPERATOR));
+        },
+        sendMsg: function(text, to) {
+            var msgId = getRandomInt(); 
+            // TODO: message queue
+            _send(["SEND " + msgId, to, text].join(SEPERATOR));
+            // update GUI
+            // TODO: userId
+            var userId = 0;
+            var name = findUserName(userId);
+            addChatMessage(msgId, name, text, sent=false);
+       },
+        disconnect: function() {
+            console.log('closing websocket');
+            socket.close();
+            socket = null;
+        }
     };
 }();
 
@@ -182,7 +203,7 @@ function sendButtonPressed() {
     setStatusBarText("Sending message...");
 
     // Insert your code here to send <message> to <to>
-    chatServer.sendMsg(msg, to);
+    chatServer.sendMsg(message, to);
 }
 
 // Use this function to get random integers for use with the Chat protocol
