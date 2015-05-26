@@ -1,4 +1,4 @@
-﻿var groupNumber = 61;
+﻿var groupNumber = 55;
 
 function main() {
     document.getElementById("groupid").textContent = "Group " + groupNumber;
