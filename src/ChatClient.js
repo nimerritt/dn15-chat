@@ -2,44 +2,142 @@
 
 function main() {
     document.getElementById("groupid").textContent = "Group " + groupNumber;
-
     // Insert any initialisation code here
 }
 
-var socket = null;
+// CHAT SERVER
+var chatServer = function() {
+    var SEPERATOR = '\r\n';
+    var socket = null;
 
-function connect(server) {
-    socket = new WebSocket(server);
-    console.log("created socket... connecting");
-    socket.onerror = function(err) {
-        console.log(err);
+    var _onLoginFailed = function(reason) {
+        console.log("login failed because of " + reason);
+        // update ui
+        onLoginFailed();
+        addInfoMessage(reason);
     };
-    socket.onopen = function() {
-        socket.send('hi\n\r');
-        console.log("is open");
-        onConnected(server);
+    var _messageTooLong = function() {
+        addInfoMessage("Message is too long");
     };
-    socket.onmessage = function(msg) {
-        console.log('msg');
-    };
-}
 
-function disconnect() {
-    console.log('closing websocket');
-    socket.onclose = function() {
+    // SERVER MESSAGES
+    var _ACKN = function(msgId, receiverId) {
+    };
+
+    var _SEND = function(msgId, senderId, msg) {
+    };
+
+    var _ARRV = function(userId, name, desc) {
+    };
+    var _INVD = function() {
+    };
+    
+    // 
+    var _parseMsg = function(message) {
+        var lines = message.split(SEPERATOR);
+        if (lines[0].includes("FAIL")) {
+            switch(lines[1]) {
+                case "PASSWORD":
+                    _onLoginFailed("Invalid password");
+                break;
+                case "NAME":
+                    _onLoginFailed("Invalid name");
+                break;
+                case "NUMBER":
+                    _onLoginFailed("Invalid UserId");
+                break;
+                case "LENGTH":
+                    _messageTooLong();
+                break;
+            }
+        }
+        else if(lines[0].includes("ACKN")) {
+            var msgId = lines[0].split(' ')[1];
+            var receiverId = lines[1];
+            _ACKN(msgId, receiverId);
+        }
+        else if(lines[0].includes("SEND")) {
+            var msgId = lines[0].split(' ')[1];
+            var senderId = lines[1];
+            var msg = lines[2];
+            _SEND(msgId, senderId, msg);
+        }
+        else if(lines[0].includes("ARRV")) {
+            var userId = lines[0].split(' ')[1];
+            var name = lines[1];
+            var desc = lines[2];
+            _ARRV(userId, name, desc);
+        }
+        else if(lines[0].includes("LEFT")) {
+            var userId = lines[0].split(' ')[1];
+            _LEFT(userId);
+        }
+        else if(lines[0].includes("INVD")) {
+            _INVD();
+        }
+        else {
+            // SOMETHING REALLY STRANGE HAPPENED!
+        }
+    };
+
+    var _onerror = function(err) {
+        console.log("ERR " + err);
+    };
+
+    var _onopen = function() {
+        console.log("socket is open");
+        onConnected(socket.url);
+    };
+
+    var _onmessage = function(msg) {
+        console.log("Received from " + socket.url);
+        console.log(msg.data);
+        _parseMsg(msg.data);
+    };
+
+    var _onclose = function() {
         console.log("websocket closed");
-        onDisconnected(server);
+        onDisconnected();
     };
-    socket.close();
-    socket = null;
-    }
-// Called when the "Connect" button is pressed
+
+    var _connect = function(url) {
+        console.log("connecting to " + url);
+        socket = new WebSocket(url);
+        socket.onopen = _onopen;
+        socket.onclose = _onclose;
+        socket.onmessage = _onmessage;
+        socket.onerror = _onerror;
+        console.log("connected to " + url);
+    };
+    var _disconnect = function() {
+        console.log('closing websocket');
+        socket.close();
+        socket = null;
+    };
+
+    var _send = function(msg) {
+        console.log("Send to " + socket.url);
+        console.log(msg);
+        socket.send(msg);
+    };
+
+    return {
+        connect: _connect,
+        login: function(userId, username, password) {
+            var msg = ["AUTH " + userId, username, password].join(SEPERATOR);
+            _send(msg);
+        },
+        sendMsg: function(msg) {},
+        disconnect: _disconnect
+    };
+}();
+
+
 function connectButtonPressed() {
     var server = document.getElementById("serverInput").value;
     document.getElementById("connect").setAttribute("disabled", "disabled");
     setStatusBarText("Connecting to " + server + "...");
-    // Insert your code here
-    connect(server);
+    chatServer.connect(server);
 }
 
 // Called when the "Disconnect" button is pressed
@@ -48,7 +146,7 @@ function disconnectButtonPressed() {
     document.getElementById("login").setAttribute("disabled", "disabled");
     setStatusBarText("Disconnecting...");
     // Insert your code here
-    disconnect();
+    chatServer.disconnect();
 }
 
 // Called when the "Log in" button is pressed
@@ -57,14 +155,14 @@ function loginButtonPressed() {
     var password = document.getElementById("passwordInput").value;
     document.getElementById("login").setAttribute("disabled", "disabled");
     setStatusBarText("Authenticating...");
-
     // Insert your code here
+    chatServer.login(getRandomInt(), name, password);
 }
 
 // Called when the "Send" button is pressed
 function sendButtonPressed() {
     var message = document.getElementById("messageInput").value;
-    if (message == "") return;
+    if (message === "") return;
     var to = "*";
     if (message.substring(0, 1) == "@") {
         var index = message.indexOf(":");
@@ -79,11 +177,12 @@ function sendButtonPressed() {
         }
     }
     message = message.trim();
-    if (message == "") return;
+    if (message === "") return;
     document.getElementById("messageInput").value = "";
     setStatusBarText("Sending message...");
 
     // Insert your code here to send <message> to <to>
+    chatServer.sendMsg(msg, to);
 }
 
 // Use this function to get random integers for use with the Chat protocol
