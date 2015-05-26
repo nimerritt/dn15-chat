@@ -66,7 +66,7 @@ var chatServer = function() {
 
     var _parseMsg = function(message) {
         var lines = message.split(SEPERATOR);
-        if (lines[0].includes("FAIL")) {
+        if (lines[0].indexOf("FAIL") > -1) {
             switch (lines[1]) {
                 case "PASSWORD":
                     _onLoginFailed("Invalid password");
@@ -81,27 +81,27 @@ var chatServer = function() {
                     _messageTooLong();
                     break;
             }
-        } else if (lines[0].includes("OKAY")) {
+        } else if (lines[0].indexOf("OKAY") > -1 ) {
             var id = lines[0].split(' ')[1];
             _OKAY(id);
-        } else if (lines[0].includes("ACKN")) {
+        } else if (lines[0].indexOf("ACKN") > -1) {
             var msgId = lines[0].split(' ')[1];
             var receiverId = lines[1];
             _ACKN(msgId, receiverId);
-        } else if (lines[0].includes("SEND")) {
+        } else if (lines[0].indexOf("SEND") > -1) {
             var msgId = lines[0].split(' ')[1];
             var senderId = lines[1];
             var msg = lines[2];
             _SEND(msgId, senderId, msg);
-        } else if (lines[0].includes("ARRV")) {
+        } else if (lines[0].indexOf("ARRV") > -1) {
             var userId = lines[0].split(' ')[1];
             var name = lines[1];
             var desc = lines[2];
             _ARRV(userId, name, desc);
-        } else if (lines[0].includes("LEFT")) {
+        } else if (lines[0].indexOf("LEFT") > -1) {
             var userId = lines[0].split(' ')[1];
             _LEFT(userId);
-        } else if (lines[0].includes("INVD")) {
+        } else if (lines[0].indexOf("INVD") > -1) {
             _INVD();
         } else {
             // SOMETHING REALLY STRANGE HAPPENED!
