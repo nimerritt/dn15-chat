@@ -1,4 +1,4 @@
-﻿var groupNumber = 0; // replace by your group number
+﻿var groupNumber = 61;
 
 function main() {
     document.getElementById("groupid").textContent = "Group " + groupNumber;
@@ -10,16 +10,18 @@ var chatServer = function() {
     var SEPERATOR = '\r\n';
     var socket = null;
     var authenticated = false; // store state to distinguish betwen OKAY messages
+    var userId = -1;
+    var username = null;
 
-    var _onLoginSuccess = function() {
+    var _onLoginSuccess = function(id) {
         console.log("login success");
         authenticated = true; 
+        addUser(_userId, _username, 'me');
         onLoginSuccess();
     };
 
     var _onLoginFailed = function(reason) {
         console.log("login failed because of " + reason);
-        // update ui
         authenticated = false;
         onLoginFailed();
         addInfoMessage(reason);
@@ -30,27 +32,35 @@ var chatServer = function() {
 
     // SERVER MESSAGES
     var _ACKN = function(msgId, receiverId) {
-
+        var name = findUserName(receiverId);
+        markMessageAcknowledged(msgId, name);
     };
 
-    var _SEND = function(msgId, senderId, msg) {
+    var _SEND = function(msgId, senderId, text) {
         // msg received
-        console.log('_SEND', msg, senderId, msg);
-        addChatMessage(msgId, sendId, msg, true);
+        console.log('_SEND', msgId, senderId, text);
+        var name = findUserName(senderId);
+        addChatMessage(msgId, name, text, sent=false);
+        _send("ACKN " + msgId);
     };
 
     var _ARRV = function(userId, name, desc) {
-        console.log('_ARRV', userId, name, desc);
+        console.log("add user", userId, name, desc);
         addUser(userId, name, desc);
     };
     var _INVD = function() {};
-    var _LEFT = function(userId) {};
-    var _OKAY = function() {
+    var _LEFT = function(userId) {
+        console.log("remove user", userId);
+        removeUser(userId);
+    };
+    var _OKAY = function(id) {
         if (authenticated) {
             // mark message as received
+            console.log("msg received by server", id);
+            markMessageConfirmed(id);
         }
         else {
-            _onLoginSuccess();
+            _onLoginSuccess(id);
         }
     };
 
@@ -72,7 +82,8 @@ var chatServer = function() {
                     break;
             }
         } else if (lines[0].includes("OKAY")) {
-            _OKAY();
+            var id = lines[0].split(' ')[1];
+            _OKAY(id);
         } else if (lines[0].includes("ACKN")) {
             var msgId = lines[0].split(' ')[1];
             var receiverId = lines[1];
@@ -107,8 +118,7 @@ var chatServer = function() {
     };
 
     var _onmessage = function(msg) {
-        console.log("Received from " + socket.url);
-        console.log(msg.data);
+        console.log("<< ", msg.data);
         _parseMsg(msg.data);
     };
 
@@ -118,7 +128,7 @@ var chatServer = function() {
     };
 
     var _send = function(msg) {
-            console.log("SEND:", msg);
+            console.log(">>", msg);
             socket.send(msg);
     };
  
@@ -133,17 +143,16 @@ var chatServer = function() {
             console.log("connected to " + url);
         },
         login: function(userId, username, password) {
+            _username = username;
+            _userId = userId;
+
             _send(["AUTH " + userId, username, password].join(SEPERATOR));
         },
         sendMsg: function(text, to) {
             var msgId = getRandomInt(); 
-            // TODO: message queue
             _send(["SEND " + msgId, to, text].join(SEPERATOR));
-            // update GUI
-            // TODO: userId
-            var userId = 0;
-            var name = findUserName(userId);
-            addChatMessage(msgId, name, text, sent=false);
+            var name = findUserName(_userId);
+            addChatMessage(msgId, name, text, sent=true);
        },
         disconnect: function() {
             console.log('closing websocket');
@@ -314,6 +323,7 @@ function markMessageConfirmed(number) {
     var msgDiv = document.getElementById("msg" + number);
     if (!msgDiv) return;
     msgDiv.style.opacity = 1.0;
+    setStatusBarText("Message sent");
 }
 
 // Call this function to indicate that a message has been acknowledged by a certain user
